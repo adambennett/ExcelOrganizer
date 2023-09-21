@@ -9,16 +9,16 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
-public class DevVersion {
+public class Main {
     public static void main(String[] args) {
-        List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = fourGroupTest();
-        List<List<LoanDataValuesDTO>> excelData = formatMultiRowCustomReportData(multiRowCustomReportDataSets);
-        int rowNum = 1;
+        List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = oneGroupTest();
+        List<List<LoanDataValuesDTO>> excelData = columnApproachAttempt(multiRowCustomReportDataSets);
+        int rowNum = 0;
         for (var row : excelData) {
             for (var cell : row) {
                 System.out.print(cell + " | ");
-                rowNum++;
             }
+            rowNum++;
             System.out.println();
         }
         System.out.println("\n\nRows: " + rowNum);
@@ -438,8 +438,10 @@ public class DevVersion {
                 for (LoanDataValuesDTO row : rowGroup) {
                     String groupingKey = row.getGroupingKey();
                     String groupKey = row.getGroupKey();
-                    uniqueGroupKeys.putIfAbsent(groupingKey, new HashMap<>());
-                    uniqueGroupKeys.get(groupingKey).put(groupKey, true);
+                    if (groupingKey != null && !groupingKey.trim().isEmpty() && groupKey != null && !groupKey.trim().isEmpty()) {
+                        uniqueGroupKeys.putIfAbsent(groupingKey, new HashMap<>());
+                        uniqueGroupKeys.get(groupingKey).put(groupKey, true);
+                    }
                 }
             }
         }
@@ -491,6 +493,144 @@ public class DevVersion {
         public int compareTo(GroupKeyValue o) {
             return Comparator.comparing(GroupKeyValue::order).compare(this, o);
         }
+    }
+    private record GroupedRow(String groupingKey, Integer rowIndex) {}
+    private static List<List<LoanDataValuesDTO>> columnApproachAttempt(List<List<List<LoanDataValuesDTO>>> data) {
+        List<List<LoanDataValuesDTO>> output = new ArrayList<>();
+        HashSet<ColumnHeader> headers = new HashSet<>();
+        LinkedHashSet<GroupKeyValue> groupKeyValues = new LinkedHashSet<>();
+        HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey = new HashMap<>();
+        HashMap<String, List<String>> iterableGroupKeysByGroupingKey = new HashMap<>();
+        LinkedHashSet<String> matchKeyCheck = new LinkedHashSet<>();
+
+        for (var list : data) {
+            for (var row : list) {
+                for (var cell : row) {
+                    matchKeyCheck.add(cell.getGroupingKey());
+                    groupKeyValues.add(new GroupKeyValue(cell.getReportName(), cell.getGroupingKey(), cell.getGroupKey(), cell.getValue(), cell.getOrder(), cell.getReportHeaderName()));
+                    headers.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
+                }
+            }
+        }
+
+
+
+        List<ColumnHeader> sorted = headers.stream().sorted().toList();
+        List<GroupKeyValue> sortedGroupKeys = groupKeyValues.stream().sorted().toList();
+
+        for (var key : sortedGroupKeys) {
+            if (key.key() != null && !key.value().trim().isEmpty()) {
+                LinkedHashSet<String> list = uniqueKeysByGroupingKey.getOrDefault(key.groupingKey(), new LinkedHashSet<>());
+                list.add(key.key());
+                uniqueKeysByGroupingKey.put(key.groupingKey(), list);
+            }
+        }
+        for (var entry : uniqueKeysByGroupingKey.entrySet()) {
+            var list = iterableGroupKeysByGroupingKey.getOrDefault(entry.getKey(), new ArrayList<>());
+            list.addAll(entry.getValue());
+            iterableGroupKeysByGroupingKey.put(entry.getKey(), list);
+        }
+        List<String> matchKeys = matchKeyCheck.stream().toList();
+        String currentMatchKey = matchKeys.get(0);
+
+        int numberOfRowsToRolloverAfter = uniqueKeysByGroupingKey.get(currentMatchKey).size();
+        HashMap<String, Integer> groupingKeyRolloverMap = new HashMap<>();
+        HashMap<String, Integer> rowsRemainingUntilRollover = new HashMap<>();
+        HashMap<String, Integer> remainingRowsResetMap = new HashMap<>();
+        int uniqueKeysSoFar = 0;
+        for (var m : matchKeyCheck) {
+            if (m.equalsIgnoreCase(currentMatchKey)) {
+                groupingKeyRolloverMap.put(m, numberOfRowsToRolloverAfter);
+                rowsRemainingUntilRollover.put(m, 1);
+                remainingRowsResetMap.put(m, 1);
+                uniqueKeysSoFar += uniqueKeysByGroupingKey.get(m).size();
+            } else {
+                int keys = uniqueKeysByGroupingKey.get(m).size();
+                groupingKeyRolloverMap.put(m, uniqueKeysSoFar);
+                rowsRemainingUntilRollover.put(m,uniqueKeysSoFar);
+                remainingRowsResetMap.put(m, uniqueKeysSoFar);
+                uniqueKeysSoFar *= keys;
+            }
+        }
+
+        int rows = countRows(data);
+        int columns = sorted.size();
+        HashMap<Integer, List<LoanDataValuesDTO>> rowsByColumnIndex = new HashMap<>();
+        for (int i = 0; i < columns; i++) {
+            rowsByColumnIndex.put(i, new ArrayList<>());
+        }
+        HashMap<String, Integer> groupingIteration = new HashMap<>();
+        for (var s : matchKeyCheck) {
+            groupingIteration.put(s, 0);
+        }
+
+        HashMap<GroupedRow, String> groupKeyForRow = new HashMap<>();
+        for (int columnIndex = 0; columnIndex < columns; columnIndex++) {
+            List<LoanDataValuesDTO> row = rowsByColumnIndex.get(columnIndex);
+            ColumnHeader column = sorted.get(columnIndex);
+            for (int rowIndex = 0, rollOverCounter = 0; rowIndex < rows; rowIndex++) {
+                String group = column.groupingKey();
+                var groupKeys = iterableGroupKeysByGroupingKey.get(group);
+                var groupMatches = groupKeyValues.stream().filter(g -> g.identifier().equalsIgnoreCase(column.identifier()) && g.groupingKey().equalsIgnoreCase(group)).toList();
+                int rolloverRows = groupingKeyRolloverMap.get(group);
+                int index = groupingIteration.get(group);
+                String cellValue = "";
+                GroupedRow groupedRow = new GroupedRow(group, rowIndex);
+                String groupKey = groupKeyForRow.getOrDefault(groupedRow, groupKeys.get(index));
+                var matches = groupMatches.stream().filter(c -> c.key().equalsIgnoreCase(groupKey)).toList();
+                cellValue = !matches.isEmpty() ? matches.get(0).value() : "";
+                row.add(rowIndex, LoanDataValuesDTO.builder()
+                        .reportHeaderName(column.value())
+                        .value(cellValue)
+                        .groupingKey(group)
+                        .groupKey(groupKey)
+                        .order(column.order())
+                        .reportName(column.identifier())
+                        .build()
+                );
+                if (matches.isEmpty() && !groupKeyForRow.containsKey(groupedRow)) {
+                    groupKeyForRow.put(groupedRow, groupKey);
+                }
+                if (currentMatchKey.equalsIgnoreCase(group)) {
+                    groupingIteration.compute(group, (k, v) -> v == null ? 1 : v + 1);
+                    if (groupingIteration.get(group) >= uniqueKeysByGroupingKey.get(group).size()) {
+                        groupingIteration.put(group, 0);
+                    }
+                }
+                for (var entry : rowsRemainingUntilRollover.entrySet()) {
+                    rowsRemainingUntilRollover.compute(entry.getKey(), (k, v) -> v == null ? 0 : v - 1);
+                }
+                rollOverCounter++;
+                for (String g : matchKeys) {
+                    if (!g.equalsIgnoreCase(currentMatchKey)) {
+                        int remaining = rowsRemainingUntilRollover.get(g);
+                        if (remaining <= 0) {
+                            groupingIteration.compute(g, (k, v) -> v == null ? 1 : v + 1);
+                            if (groupingIteration.get(g) >= uniqueKeysByGroupingKey.get(g).size()) {
+                                groupingIteration.put(g, 0);
+                            }
+                            rowsRemainingUntilRollover.put(g, remainingRowsResetMap.get(g));
+                        }
+                    }
+                }
+                if (rollOverCounter >= rolloverRows) {
+                    //System.out.println("rollover in col " + columnIndex + ", row " + rowIndex);
+                    rollOverCounter = 0;
+                    if (currentMatchKey.equalsIgnoreCase(group)) {
+                        groupingIteration.put(group, 0);
+                        rowsRemainingUntilRollover.put(group, remainingRowsResetMap.get(group));
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < rows; i++) {
+            List<LoanDataValuesDTO> row = new ArrayList<>();
+            for (var entry : rowsByColumnIndex.entrySet()) {
+                row.add(entry.getValue().get(i));
+            }
+            output.add(row);
+        }
+        return output;
     }
     private static List<List<LoanDataValuesDTO>> groupSortMultiRowReportData(List<List<List<LoanDataValuesDTO>>> data) {
         List<List<List<LoanDataValuesDTO>>> removeEmptiesTemporarily = new ArrayList<>();
