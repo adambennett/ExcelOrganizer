@@ -7,3 +7,8 @@ Good luck. This is likely the hardest problem I've ever attempted to solve via a
 Basic Explanation of what im trying to do
 
 ![Explain](src/main/resources/Explain.png)
+
+
+FourGroupTest Expected output
+
+![FourGroupTest](src/main/resources/FourGroupTest.png)
