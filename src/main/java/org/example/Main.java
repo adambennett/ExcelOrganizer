@@ -11,16 +11,66 @@ import java.util.Objects;
 
 public class Main {
     public static void main(String[] args) {
-        List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = oneGroupTest();
-        List<List<LoanDataValuesDTO>> excelData = columnApproachAttempt(multiRowCustomReportDataSets);
+        List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = txTest();
+        List<List<LoanDataValuesDTO>> excelData = groupSortMultiRowReportData(multiRowCustomReportDataSets);
+        HashSet<ColumnHeader> headers = new HashSet<>();
+        for (List<List<LoanDataValuesDTO>> list : multiRowCustomReportDataSets) {
+            for (List<LoanDataValuesDTO> row : list) {
+                for (LoanDataValuesDTO cell : row) {
+                    headers.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
+                }
+            }
+        }
+        List<ColumnHeader> sorted = headers.stream().sorted().toList();
+
+        System.out.println("\n\n-----------------------------------------------------------------------------------------------------------------------------------------------");
+        System.out.print("| ");
+        boolean first = true;
+        boolean second = false;
+        for (var header : sorted) {
+            String c = header.value();
+            if (c.equalsIgnoreCase("SFR: Queue")) {
+                c += "      ";
+            } if (first && c.equalsIgnoreCase("Finding Name")) {
+                first = false;
+                second = true;
+                c += "    ";
+            } else if (!second && !first && c.equalsIgnoreCase("Finding name")) {
+                c += "                                                                      ";
+            } else if (!first && c.equalsIgnoreCase("Finding Name")) {
+                c += "    ";
+                second = false;
+            }
+            System.out.print(c + " | ");
+        }
+        System.out.println();
+        System.out.println("-----------------------------------------------------------------------------------------------------------------------------------------------");
         int rowNum = 0;
         for (var row : excelData) {
+            int count = 0;
             for (var cell : row) {
-                System.out.print(cell + " | ");
+                String c = cell.getValue() == null || cell.getValue().trim().isEmpty() ? "                " : cell.getValue();
+                if (count == 0) {
+                    c = "| " + c;
+                }
+                if (count + 1 >= row.size() && c.length() < "Calculated Initial Payment and Initial Principal and Interest Payment do not match".length()) {
+                    int diff = "Calculated Initial Payment and Initial Principal and Interest Payment do not match".length() - c.length();
+                    for (int i = 0; i < diff; i++) {
+                        c += " ";
+                    }
+                } else if (c.length() < "                 ".length()) {
+                    int diff = "                ".length() - c.length();
+                    for (int i = 0; i < diff; i++) {
+                        c += " ";
+                    }
+                }
+                System.out.print(c + " | ");
+                count++;
             }
             rowNum++;
             System.out.println();
         }
+        System.out.println("-----------------------------------------------------------------------------------------------------------------------------------------------");
         System.out.println("\n\nRows: " + rowNum);
     }
 
@@ -454,33 +504,6 @@ public class Main {
 
         return totalRows;
     }
-    private static boolean isInteger(String str) {
-        try {
-            Integer.parseInt(str);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    private record HeaderKey(String groupKey, ColumnHeader header) {
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            HeaderKey headerKey = (HeaderKey) o;
-
-            if (!Objects.equals(groupKey, headerKey.groupKey)) return false;
-            return Objects.equals(header, headerKey.header);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = groupKey != null ? groupKey.hashCode() : 0;
-            result = 31 * result + (header != null ? header.hashCode() : 0);
-            return result;
-        }
-    }
     private record ColumnHeader(String identifier, String value, int order, String groupingKey) implements Comparable<ColumnHeader> {
 
         @Override
@@ -495,90 +518,80 @@ public class Main {
         }
     }
     private record GroupedRow(String groupingKey, Integer rowIndex) {}
-    private static List<List<LoanDataValuesDTO>> columnApproachAttempt(List<List<List<LoanDataValuesDTO>>> data) {
+    private static List<List<LoanDataValuesDTO>> groupSortMultiRowReportData(List<List<List<LoanDataValuesDTO>>> data) {
+        // Variables
         List<List<LoanDataValuesDTO>> output = new ArrayList<>();
         HashSet<ColumnHeader> headers = new HashSet<>();
+        LinkedHashSet<String> matchKeyCheck = new LinkedHashSet<>();
         LinkedHashSet<GroupKeyValue> groupKeyValues = new LinkedHashSet<>();
+        HashMap<String, Integer> groupingIteration = new HashMap<>();
+        HashMap<String, Integer> groupingKeyRolloverMap = new HashMap<>();
+        HashMap<String, Integer> rowsRemainingUntilRollover = new HashMap<>();
+        HashMap<String, Integer> remainingRowsResetMap = new HashMap<>();
+        HashMap<GroupedRow, String> groupKeyForRow = new HashMap<>();
+        HashMap<Integer, List<LoanDataValuesDTO>> rowsByColumnIndex = new HashMap<>();
         HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey = new HashMap<>();
         HashMap<String, List<String>> iterableGroupKeysByGroupingKey = new HashMap<>();
-        LinkedHashSet<String> matchKeyCheck = new LinkedHashSet<>();
 
-        for (var list : data) {
-            for (var row : list) {
-                for (var cell : row) {
+        // Setup
+        for (List<List<LoanDataValuesDTO>> list : data) {
+            for (List<LoanDataValuesDTO> row : list) {
+                for (LoanDataValuesDTO cell : row) {
                     matchKeyCheck.add(cell.getGroupingKey());
                     groupKeyValues.add(new GroupKeyValue(cell.getReportName(), cell.getGroupingKey(), cell.getGroupKey(), cell.getValue(), cell.getOrder(), cell.getReportHeaderName()));
                     headers.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
                 }
             }
         }
-
-
-
         List<ColumnHeader> sorted = headers.stream().sorted().toList();
-        List<GroupKeyValue> sortedGroupKeys = groupKeyValues.stream().sorted().toList();
-
-        for (var key : sortedGroupKeys) {
+        groupKeyValues.stream().sorted().toList().forEach(key -> {
             if (key.key() != null && !key.value().trim().isEmpty()) {
                 LinkedHashSet<String> list = uniqueKeysByGroupingKey.getOrDefault(key.groupingKey(), new LinkedHashSet<>());
                 list.add(key.key());
                 uniqueKeysByGroupingKey.put(key.groupingKey(), list);
             }
-        }
+        });
         for (var entry : uniqueKeysByGroupingKey.entrySet()) {
-            var list = iterableGroupKeysByGroupingKey.getOrDefault(entry.getKey(), new ArrayList<>());
+            List<String> list = iterableGroupKeysByGroupingKey.getOrDefault(entry.getKey(), new ArrayList<>());
             list.addAll(entry.getValue());
             iterableGroupKeysByGroupingKey.put(entry.getKey(), list);
         }
         List<String> matchKeys = matchKeyCheck.stream().toList();
         String currentMatchKey = matchKeys.get(0);
-
         int numberOfRowsToRolloverAfter = uniqueKeysByGroupingKey.get(currentMatchKey).size();
-        HashMap<String, Integer> groupingKeyRolloverMap = new HashMap<>();
-        HashMap<String, Integer> rowsRemainingUntilRollover = new HashMap<>();
-        HashMap<String, Integer> remainingRowsResetMap = new HashMap<>();
         int uniqueKeysSoFar = 0;
-        for (var m : matchKeyCheck) {
-            if (m.equalsIgnoreCase(currentMatchKey)) {
-                groupingKeyRolloverMap.put(m, numberOfRowsToRolloverAfter);
-                rowsRemainingUntilRollover.put(m, 1);
-                remainingRowsResetMap.put(m, 1);
-                uniqueKeysSoFar += uniqueKeysByGroupingKey.get(m).size();
+        for (String groupKey : matchKeyCheck) {
+            groupingIteration.put(groupKey, 0);
+            if (groupKey.equalsIgnoreCase(currentMatchKey)) {
+                groupingKeyRolloverMap.put(groupKey, numberOfRowsToRolloverAfter);
+                rowsRemainingUntilRollover.put(groupKey, 1);
+                remainingRowsResetMap.put(groupKey, 1);
+                uniqueKeysSoFar += uniqueKeysByGroupingKey.get(groupKey).size();
             } else {
-                int keys = uniqueKeysByGroupingKey.get(m).size();
-                groupingKeyRolloverMap.put(m, uniqueKeysSoFar);
-                rowsRemainingUntilRollover.put(m,uniqueKeysSoFar);
-                remainingRowsResetMap.put(m, uniqueKeysSoFar);
-                uniqueKeysSoFar *= keys;
+                groupingKeyRolloverMap.put(groupKey, uniqueKeysSoFar);
+                rowsRemainingUntilRollover.put(groupKey,uniqueKeysSoFar);
+                remainingRowsResetMap.put(groupKey, uniqueKeysSoFar);
+                uniqueKeysSoFar *= uniqueKeysByGroupingKey.get(groupKey).size();
             }
         }
 
+        // Main Loop
         int rows = countRows(data);
         int columns = sorted.size();
-        HashMap<Integer, List<LoanDataValuesDTO>> rowsByColumnIndex = new HashMap<>();
-        for (int i = 0; i < columns; i++) {
-            rowsByColumnIndex.put(i, new ArrayList<>());
-        }
-        HashMap<String, Integer> groupingIteration = new HashMap<>();
-        for (var s : matchKeyCheck) {
-            groupingIteration.put(s, 0);
-        }
-
-        HashMap<GroupedRow, String> groupKeyForRow = new HashMap<>();
         for (int columnIndex = 0; columnIndex < columns; columnIndex++) {
+            rowsByColumnIndex.put(columnIndex, new ArrayList<>());
             List<LoanDataValuesDTO> row = rowsByColumnIndex.get(columnIndex);
             ColumnHeader column = sorted.get(columnIndex);
             for (int rowIndex = 0, rollOverCounter = 0; rowIndex < rows; rowIndex++) {
                 String group = column.groupingKey();
-                var groupKeys = iterableGroupKeysByGroupingKey.get(group);
-                var groupMatches = groupKeyValues.stream().filter(g -> g.identifier().equalsIgnoreCase(column.identifier()) && g.groupingKey().equalsIgnoreCase(group)).toList();
+                GroupedRow groupedRow = new GroupedRow(group, rowIndex);
+                List<String> groupKeys = iterableGroupKeysByGroupingKey.get(group);
+                List<GroupKeyValue> groupMatches = groupKeyValues.stream().filter(g -> g.identifier().equalsIgnoreCase(column.identifier()) && g.groupingKey().equalsIgnoreCase(group)).toList();
                 int rolloverRows = groupingKeyRolloverMap.get(group);
                 int index = groupingIteration.get(group);
-                String cellValue = "";
-                GroupedRow groupedRow = new GroupedRow(group, rowIndex);
                 String groupKey = groupKeyForRow.getOrDefault(groupedRow, groupKeys.get(index));
-                var matches = groupMatches.stream().filter(c -> c.key().equalsIgnoreCase(groupKey)).toList();
-                cellValue = !matches.isEmpty() ? matches.get(0).value() : "";
+                List<GroupKeyValue> matches = groupMatches.stream().filter(c -> c.key().equalsIgnoreCase(groupKey)).toList();
+                String cellValue = !matches.isEmpty() ? matches.get(0).value() : "";
                 row.add(rowIndex, LoanDataValuesDTO.builder()
                         .reportHeaderName(column.value())
                         .value(cellValue)
@@ -600,29 +613,13 @@ public class Main {
                 for (var entry : rowsRemainingUntilRollover.entrySet()) {
                     rowsRemainingUntilRollover.compute(entry.getKey(), (k, v) -> v == null ? 0 : v - 1);
                 }
-                rollOverCounter++;
-                for (String g : matchKeys) {
-                    if (!g.equalsIgnoreCase(currentMatchKey)) {
-                        int remaining = rowsRemainingUntilRollover.get(g);
-                        if (remaining <= 0) {
-                            groupingIteration.compute(g, (k, v) -> v == null ? 1 : v + 1);
-                            if (groupingIteration.get(g) >= uniqueKeysByGroupingKey.get(g).size()) {
-                                groupingIteration.put(g, 0);
-                            }
-                            rowsRemainingUntilRollover.put(g, remainingRowsResetMap.get(g));
-                        }
-                    }
-                }
-                if (rollOverCounter >= rolloverRows) {
-                    //System.out.println("rollover in col " + columnIndex + ", row " + rowIndex);
-                    rollOverCounter = 0;
-                    if (currentMatchKey.equalsIgnoreCase(group)) {
-                        groupingIteration.put(group, 0);
-                        rowsRemainingUntilRollover.put(group, remainingRowsResetMap.get(group));
-                    }
-                }
+                rollOverCounter = rollover(rollOverCounter, rolloverRows, currentMatchKey, group,
+                        matchKeys, rowsRemainingUntilRollover, groupingIteration,
+                        uniqueKeysByGroupingKey, remainingRowsResetMap);
             }
         }
+
+        // Prepare output
         for (int i = 0; i < rows; i++) {
             List<LoanDataValuesDTO> row = new ArrayList<>();
             for (var entry : rowsByColumnIndex.entrySet()) {
@@ -632,243 +629,37 @@ public class Main {
         }
         return output;
     }
-    private static List<List<LoanDataValuesDTO>> groupSortMultiRowReportData(List<List<List<LoanDataValuesDTO>>> data) {
-        List<List<List<LoanDataValuesDTO>>> removeEmptiesTemporarily = new ArrayList<>();
-        List<List<List<LoanDataValuesDTO>>> noEmptiesData = new ArrayList<>();
-        for (var list : data) {
-            if (list.stream().anyMatch(d -> d.stream().anyMatch(c -> c.getGroupKey() == null || c.getGroupKey().trim().isEmpty()))) {
-                removeEmptiesTemporarily.add(list);
-            } else {
-                noEmptiesData.add(list);
-            }
-        }
-        data = noEmptiesData;
-        int outputIndex = 0;
-        List<List<LoanDataValuesDTO>> output = new ArrayList<>();
-        HashSet<ColumnHeader> headers = new HashSet<>();
-        HashSet<ColumnHeader> emptyHeaders = new HashSet<>();
-        LinkedHashSet<String> matchKeyCheck = new LinkedHashSet<>();
-        LinkedHashSet<GroupKeyValue> groupKeyValues = new LinkedHashSet<>();
-        HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey = new HashMap<>();
-        HashMap<String, String> resetGroupKeys = new HashMap<>();
-        HashMap<String, String> currentGroupKeyForGroupingKey = new HashMap<>();
-        HashMap<String, String> correctCurrentGroupKeyForGroupingKey = new HashMap<>();
-        HashMap<String, Integer> currentIterationIndexOfHeader = new HashMap<>();
-        HashMap<String, Integer> uniqueKeysCountIterationMap = new HashMap<>();
 
-        for (var list : data) {
-            for (var row : list) {
-                for (var cell : row) {
-                    matchKeyCheck.add(cell.getGroupingKey());
-                    groupKeyValues.add(new GroupKeyValue(cell.getReportName(), cell.getGroupingKey(), cell.getGroupKey(), cell.getValue(), cell.getOrder(), cell.getReportHeaderName()));
-                    headers.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
-                }
-            }
-        }
-        for (var list : removeEmptiesTemporarily) {
-            for (var row : list) {
-                for (var cell : row) {
-                    emptyHeaders.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
-                }
-            }
-        }
-
-        List<ColumnHeader> sorted = headers.stream().sorted().toList();
-        List<ColumnHeader> sortedEmpty = emptyHeaders.stream().sorted().toList();
-        List<GroupKeyValue> sortedGroupKeys = groupKeyValues.stream().sorted().toList();
-
-        for (var key : sortedGroupKeys) {
-            if (key.key() != null && !key.value().trim().isEmpty()) {
-                LinkedHashSet<String> list = uniqueKeysByGroupingKey.getOrDefault(key.groupingKey(), new LinkedHashSet<>());
-                list.add(key.key());
-                uniqueKeysByGroupingKey.put(key.groupingKey(), list);
-                uniqueKeysCountIterationMap.put(key.groupingKey(), list.size());
-            }
-            currentIterationIndexOfHeader.put(key.identifier(), 0);
-
-        }
-        for (var entry : uniqueKeysByGroupingKey.entrySet()) {
-            String gk = "";
-            for (var s : entry.getValue()) {
-                gk = s;
-                break;
-            }
-            resetGroupKeys.put(entry.getKey(), gk);
-        }
-        for (var key : sortedGroupKeys) {
-            correctCurrentGroupKeyForGroupingKey.put(key.groupingKey(), resetGroupKeys.get(key.groupingKey()));
-        }
-
-
-        List<String> matchKeys = matchKeyCheck.stream().toList();
-        String currentMatchKey = matchKeys.get(0);
-        int numberOfRowsToRolloverAfter = uniqueKeysByGroupingKey.get(currentMatchKey).size();
-        int rolloverRows = 0;
-
-        int rows = countRows(data);
-        int columns = sorted.size();
-        HashSet<HeaderKey> alreadyCheckedForRollover = new HashSet<>();
-        for (int rowIndex = 0; rowIndex < rows; rowIndex++) {
-            List<LoanDataValuesDTO> row = new ArrayList<>();
-            for (int columnIndex = 0; columnIndex < columns; columnIndex++) {
-                ColumnHeader header = sorted.get(columnIndex);
-                String grouping = header.groupingKey();
-                List<GroupKeyValue> matchingGroupingKeys = groupKeyValues.stream().filter(g -> g.groupingKey().equalsIgnoreCase(grouping)).toList();
-                boolean allIntKeys = matchingGroupingKeys.stream().allMatch(k -> isInteger(k.key()));
-                Comparator<GroupKeyValue> sortFunc = allIntKeys ? Comparator.comparingInt(item -> Integer.parseInt(item.key())) : Comparator.comparing(GroupKeyValue::key);
-                List<GroupKeyValue> groupMatches = matchingGroupingKeys.stream()
-                        //.sorted(sortFunc)
-                        .filter(k -> k.identifier().equalsIgnoreCase(header.identifier()) && k.header().equalsIgnoreCase(header.value()))
-                        .toList();
-
-                String newKey = correctCurrentGroupKeyForGroupingKey.get(header.groupingKey());
-                while (alreadyCheckedForRollover.contains(new HeaderKey(newKey, header)) && alreadyCheckedForRollover.size() < uniqueKeysByGroupingKey.values().stream().map(HashSet::size).mapToInt(Integer::intValue).sum() * data.size()) {
-                    incrementHeader(header.groupingKey(), header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, uniqueKeysByGroupingKey, resetGroupKeys);
-                    newKey = correctCurrentGroupKeyForGroupingKey.get(header.groupingKey());
-                    System.out.println("Looping\n\n");
-                }
-
-                boolean haventSeenHeaderKey = groupMatches.stream().anyMatch(g -> g.key().equalsIgnoreCase(currentGroupKeyForGroupingKey.getOrDefault(header.groupingKey(), null)));
-                boolean outOfHeaderKey = currentIterationIndexOfHeader.get(header.identifier()) >= groupMatches.size();
-                boolean matchingCorrectKey = haventSeenHeaderKey && groupMatches.stream().anyMatch(g -> correctCurrentGroupKeyForGroupingKey.get(header.groupingKey()).equalsIgnoreCase(g.key()));
-                boolean matchingCurrentKey = haventSeenHeaderKey && groupMatches.stream().anyMatch(g -> currentGroupKeyForGroupingKey.get(header.groupingKey()).equalsIgnoreCase(g.key()));
-                if (matchingCorrectKey || matchingCurrentKey) {
-                    HashMap<String, String> matchedKeys = matchingCurrentKey ? currentGroupKeyForGroupingKey : correctCurrentGroupKeyForGroupingKey;
-                    var matchingKeyEntries = groupMatches.stream().filter(g -> matchedKeys.get(header.groupingKey()).equalsIgnoreCase(g.key())).toList();
-                    var l = matchingKeyEntries.get(0);
-                    row.add(LoanDataValuesDTO.builder().reportHeaderName(l.header()).value(l.value()).groupingKey(l.groupingKey()).groupKey(l.key()).order(l.order()).build());
-                    incrementHeader(currentMatchKey, header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, uniqueKeysByGroupingKey, resetGroupKeys);
-                    alreadyCheckedForRollover.add(new HeaderKey(l.key(), header));
-                    continue;
-                } else if (outOfHeaderKey) {
-                    row.add(LoanDataValuesDTO.builder().reportHeaderName(header.value()).value("").groupingKey(header.groupingKey()).order(header.order()).build());
-                    newKey = correctCurrentGroupKeyForGroupingKey.get(header.groupingKey());
-                    alreadyCheckedForRollover.add(new HeaderKey(newKey, header));
-                    currentGroupKeyForGroupingKey.put(header.groupingKey(), newKey);
-                    uniqueKeysCountIterationMap.compute(header.groupingKey(), (k, v) -> v == null ? 0 : v - 1);
-                    if (uniqueKeysCountIterationMap.get(header.groupingKey()) < 1) {
-                        resetHeader(header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, resetGroupKeys);
+    private static int rollover(int rollOverCounter,
+                                int rolloverRows,
+                                String currentMatchKey,
+                                String rowGroup,
+                                List<String> matchKeys,
+                                HashMap<String, Integer> rowsRemainingUntilRollover,
+                                HashMap<String, Integer> groupingIteration,
+                                HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey,
+                                HashMap<String, Integer> remainingRowsResetMap) {
+        rollOverCounter++;
+        for (String g : matchKeys) {
+            if (!g.equalsIgnoreCase(currentMatchKey)) {
+                int remaining = rowsRemainingUntilRollover.get(g);
+                if (remaining <= 0) {
+                    groupingIteration.compute(g, (k, v) -> v == null ? 1 : v + 1);
+                    if (groupingIteration.get(g) >= uniqueKeysByGroupingKey.get(g).size()) {
+                        groupingIteration.put(g, 0);
                     }
-                    continue;
-                }
-
-                int currentMatchIndex = currentIterationIndexOfHeader.get(header.identifier());
-                var currentMatch = groupMatches.get(currentMatchIndex);
-
-                if (!currentGroupKeyForGroupingKey.containsKey(header.groupingKey())) {
-                    currentGroupKeyForGroupingKey.put(header.groupingKey(), currentMatch.key());
-                    row.add(LoanDataValuesDTO.builder().reportHeaderName(currentMatch.header()).value(currentMatch.value()).groupingKey(currentMatch.groupingKey()).groupKey(currentMatch.key()).order(currentMatch.order()).build());
-                    incrementHeader(currentMatchKey, header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, uniqueKeysByGroupingKey, resetGroupKeys);
-                    alreadyCheckedForRollover.add(new HeaderKey(currentMatch.key(), header));
-                } else if (groupMatches.stream().anyMatch(g -> currentGroupKeyForGroupingKey.get(header.groupingKey()).equalsIgnoreCase(g.key()))) {
-                    var matchingKeyEntries = groupMatches.stream().filter(g -> currentGroupKeyForGroupingKey.get(header.groupingKey()).equalsIgnoreCase(g.key())).toList();
-                    var l = matchingKeyEntries.get(0);
-                    row.add(LoanDataValuesDTO.builder().reportHeaderName(l.header()).value(l.value()).groupingKey(l.groupingKey()).groupKey(l.key()).order(l.order()).build());
-                    alreadyCheckedForRollover.add(new HeaderKey(l.key(), header));
-                    incrementHeader(currentMatchKey, header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, uniqueKeysByGroupingKey, resetGroupKeys);
-                } else {
-                    row.add(LoanDataValuesDTO.builder().reportHeaderName(currentMatch.header()).value("").groupingKey(currentMatch.groupingKey()).groupKey(currentMatch.key()).order(currentMatch.order()).build());
-                    alreadyCheckedForRollover.add(new HeaderKey(currentMatch.key(), header));
-                }
-            }
-            rolloverRows++;
-            if (rolloverRows == numberOfRowsToRolloverAfter) {
-                alreadyCheckedForRollover.clear();
-                rolloverRows = 0;
-                rollover(currentMatchKey, matchKeys, sorted, uniqueKeysCountIterationMap, currentIterationIndexOfHeader, uniqueKeysByGroupingKey, correctCurrentGroupKeyForGroupingKey, resetGroupKeys);
-            }
-            currentGroupKeyForGroupingKey.clear();
-            output.add(outputIndex, new ArrayList<>(row));
-            outputIndex++;
-        }
-        for (var list : output) {
-            int totalHeadersSize = sortedEmpty.size() + sorted.size();
-            if (list.size() < totalHeadersSize) {
-                int difference = totalHeadersSize - list.size();
-                for (int i = 0; i < difference && i < sortedEmpty.size(); i++) {
-                    var empty = sortedEmpty.get(i);
-                    list.add(LoanDataValuesDTO.builder().value("").reportName(empty.identifier()).reportHeaderName(empty.value()).groupingKey(empty.groupingKey()).order(empty.order()).build());
-                    list.sort(Comparator.comparing(LoanDataValuesDTO::getOrder));
+                    rowsRemainingUntilRollover.put(g, remainingRowsResetMap.get(g));
                 }
             }
         }
-        return output;
-    }
-    private static void resetHeader(ColumnHeader header,
-                                    HashMap<String, Integer> currentIterationIndexOfHeader,
-                                    HashMap<String, String> correctCurrentGroupKeyForGroupingKey,
-                                    HashMap<String, String> resetGroupKeys) {
-        currentIterationIndexOfHeader.put(header.identifier(), 0);
-        correctCurrentGroupKeyForGroupingKey.put(header.groupingKey(), resetGroupKeys.get(header.groupingKey()));
-    }
-    private static void incrementHeader(String currentMatchKey,
-                                        ColumnHeader header,
-                                        HashMap<String, Integer> currentIterationIndexOfHeader,
-                                        HashMap<String, String> correctCurrentGroupKeyForGroupingKey,
-                                        HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey,
-                                        HashMap<String, String> resetGroupKeys) {
-        if (currentMatchKey.equalsIgnoreCase(header.groupingKey())) {
-            currentIterationIndexOfHeader.compute(header.identifier(), (k, v) -> v == null || v == 0 ? 1 : v + 1);
-            incrementCorrectGroupKey(header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, uniqueKeysByGroupingKey, resetGroupKeys);
-        }
-    }
-    private static void incrementCorrectGroupKey(ColumnHeader header,
-                                                 HashMap<String, Integer> currentIterationIndexOfHeader,
-                                                 HashMap<String, String> correctCurrentGroupKeyForGroupingKey,
-                                                 HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey,
-                                                 HashMap<String, String> resetGroupKeys) {
-        int newIndex = currentIterationIndexOfHeader.get(header.identifier());
-        int counter = 0;
-        String groupKey = null;
-        for (var s : uniqueKeysByGroupingKey.get(header.groupingKey())) {
-            if (counter == newIndex) {
-                groupKey = s;
-                break;
-            }
-            counter++;
-        }
-        if (groupKey != null) {
-            correctCurrentGroupKeyForGroupingKey.put(header.groupingKey(), groupKey);
-        } else {
-            correctCurrentGroupKeyForGroupingKey.put(header.groupingKey(), resetGroupKeys.get(header.groupingKey()));
-        }
-    }
-    private static void rollover(String currentMatchKey,
-                                 List<String> matchKeys,
-                                 List<ColumnHeader> sorted,
-                                 HashMap<String, Integer> uniqueKeysCountIterationMap,
-                                 HashMap<String, Integer> currentIterationIndexOfHeader,
-                                 HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey,
-                                 HashMap<String, String> correctCurrentGroupKeyForGroupingKey,
-                                 HashMap<String, String> resetGroupKeys) {
-        for (String key : matchKeys) {
-            if (key.equalsIgnoreCase(currentMatchKey)) {
-                for (ColumnHeader header : sorted) {
-                    if (header.groupingKey().equalsIgnoreCase(key)) {
-                        //currentIterationIndexOfHeader.put(header.identifier(), 0);
-                        resetHeader(header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, resetGroupKeys);
-                    }
-                }
-            } else {
-                uniqueKeysCountIterationMap.compute(key, (k, v) -> v == null ? 0 : v - 1);
-                if (uniqueKeysCountIterationMap.get(key) >= 1) {
-                    for (ColumnHeader header : sorted) {
-                        if (header.groupingKey().equalsIgnoreCase(key)) {
-                            incrementHeader(header.groupingKey(), header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, uniqueKeysByGroupingKey, resetGroupKeys);
-                        }
-                    }
-                    break;
-                } else {
-                    int resetSize = uniqueKeysByGroupingKey.get(key).size();
-                    uniqueKeysCountIterationMap.put(key, resetSize);
-                    for (ColumnHeader header : sorted) {
-                        if (header.groupingKey().equalsIgnoreCase(key)) {
-                            resetHeader(header, currentIterationIndexOfHeader, correctCurrentGroupKeyForGroupingKey, resetGroupKeys);
-                        }
-                    }
-                }
+        if (rollOverCounter >= rolloverRows) {
+            rollOverCounter = 0;
+            if (currentMatchKey.equalsIgnoreCase(rowGroup)) {
+                groupingIteration.put(rowGroup, 0);
+                rowsRemainingUntilRollover.put(rowGroup, remainingRowsResetMap.get(rowGroup));
             }
         }
+        return rollOverCounter;
     }
 
     // Extras
