@@ -629,7 +629,6 @@ public class Main {
         }
         return output;
     }
-
     private static int rollover(int rollOverCounter,
                                 int rolloverRows,
                                 String currentMatchKey,
