@@ -11,74 +11,29 @@ import java.util.Objects;
 
 public class Main {
     public static void main(String[] args) {
-        List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = txTest();
-        List<List<LoanDataValuesDTO>> excelData = groupSortMultiRowReportData(multiRowCustomReportDataSets);
-        HashSet<ColumnHeader> headers = new HashSet<>();
-        for (List<List<LoanDataValuesDTO>> list : multiRowCustomReportDataSets) {
-            for (List<LoanDataValuesDTO> row : list) {
-                for (LoanDataValuesDTO cell : row) {
-                    headers.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
-                }
-            }
-        }
-        List<ColumnHeader> sorted = headers.stream().sorted().toList();
-
-        System.out.println("\n\n-----------------------------------------------------------------------------------------------------------------------------------------------");
-        System.out.print("| ");
-        boolean first = true;
-        boolean second = false;
-        for (var header : sorted) {
-            String c = header.value();
-            if (c.equalsIgnoreCase("SFR: Queue")) {
-                c += "      ";
-            } if (first && c.equalsIgnoreCase("Finding Name")) {
-                first = false;
-                second = true;
-                c += "    ";
-            } else if (!second && !first && c.equalsIgnoreCase("Finding name")) {
-                c += "                                                                      ";
-            } else if (!first && c.equalsIgnoreCase("Finding Name")) {
-                c += "    ";
-                second = false;
-            }
-            System.out.print(c + " | ");
+        TestData testData = dataCompareSummaryTest();
+        List<List<LoanDataValuesDTO>> basicMultiRowData = groupSortMultiRowReportData(testData.basicReportData());
+        List<List<LoanDataValuesDTO>> forcedMultiLoanFormatResult = addForcedMultiLoanColumnDataToRows(basicMultiRowData, testData.forcedMultiLoanReportData());
+        for (var header : testData.headers()) {
+            System.out.print(header.value() + " | ");
         }
         System.out.println();
         System.out.println("-----------------------------------------------------------------------------------------------------------------------------------------------");
         int rowNum = 0;
-        for (var row : excelData) {
-            int count = 0;
+        for (var row : forcedMultiLoanFormatResult) {
             for (var cell : row) {
-                String c = cell.getValue() == null || cell.getValue().trim().isEmpty() ? "                " : cell.getValue();
-                if (count == 0) {
-                    c = "| " + c;
-                }
-                if (count + 1 >= row.size() && c.length() < "Calculated Initial Payment and Initial Principal and Interest Payment do not match".length()) {
-                    int diff = "Calculated Initial Payment and Initial Principal and Interest Payment do not match".length() - c.length();
-                    for (int i = 0; i < diff; i++) {
-                        c += " ";
-                    }
-                } else if (c.length() < "                 ".length()) {
-                    int diff = "                ".length() - c.length();
-                    for (int i = 0; i < diff; i++) {
-                        c += " ";
-                    }
-                }
-                System.out.print(c + " | ");
-                count++;
+                System.out.print(cell + " | ");
             }
             rowNum++;
             System.out.println();
         }
         System.out.println("-----------------------------------------------------------------------------------------------------------------------------------------------");
-        System.out.println("\n\nRows: " + rowNum);
+        System.out.println("\nRows: " + rowNum);
     }
 
     // Tests
-    private static LoanDataValuesDTO r1(int i) {
-        return new LoanDataValuesDTO("Finding Name", "1-4 Family Rider is Missing" + i, "finding", i+"", 2);
-    }
-    private static List<List<List<LoanDataValuesDTO>>> originalTest() {
+
+    private static TestData originalTest() {
         List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = new ArrayList<>();
         List<List<LoanDataValuesDTO>> rows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData = new ArrayList<>();
@@ -150,9 +105,9 @@ public class Main {
 
         //multiRowCustomReportDataSets.add(rows5);
         //multiRowCustomReportDataSets.add(rows6);
-        return multiRowCustomReportDataSets;
+        return autoOutput(multiRowCustomReportDataSets, new ArrayList<>());
     }
-    private static List<List<List<LoanDataValuesDTO>>> oneGroupTest() {
+    private static TestData oneGroupTest() {
         List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = new ArrayList<>();
 
         int firstReportRows = 15;
@@ -171,65 +126,102 @@ public class Main {
 
         multiRowCustomReportDataSets.add(rows);
         multiRowCustomReportDataSets.add(radianOverlaysReport);
-        return multiRowCustomReportDataSets;
+        return autoOutput(multiRowCustomReportDataSets, new ArrayList<>());
     }
-    private static List<List<List<LoanDataValuesDTO>>> twoGroupTest() {
+    private static TestData twoGroupTest() {
         List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = new ArrayList<>();
+
+        List<List<LoanDataValuesDTO>> loanIdReport = new ArrayList<>();
+        List<LoanDataValuesDTO> lrRd = new ArrayList<>();
+        lrRd.add(new LoanDataValuesDTO("Loan ID Report", "Loan ID", "1", "finding", "1", 1, 1));
+        List<LoanDataValuesDTO> lrRdA = new ArrayList<>();
+        lrRdA.add(new LoanDataValuesDTO("Loan ID Report", "Loan ID", "1", "finding", "2", 1, 1));
+        List<LoanDataValuesDTO> lrRdB = new ArrayList<>();
+        lrRdB.add(new LoanDataValuesDTO("Loan ID Report", "Loan ID", "1", "finding", "3", 1, 1));
+        List<LoanDataValuesDTO> lrRd2 = new ArrayList<>();
+        lrRd2.add(new LoanDataValuesDTO("Loan ID Report", "Loan ID", "2", "finding", "1", 1, 2));
+        List<LoanDataValuesDTO> lrRd2A = new ArrayList<>();
+        lrRd2A.add(new LoanDataValuesDTO("Loan ID Report", "Loan ID", "2", "finding", "2", 1, 2));
+        List<LoanDataValuesDTO> lrRd2B = new ArrayList<>();
+        lrRd2B.add(new LoanDataValuesDTO("Loan ID Report", "Loan ID", "2", "finding", "3", 1, 2));
+        loanIdReport.add(lrRd);
+        loanIdReport.add(lrRdA);
+        loanIdReport.add(lrRdB);
+        loanIdReport.add(lrRd2);
+        loanIdReport.add(lrRd2A);
+        loanIdReport.add(lrRd2B);
+
         List<List<LoanDataValuesDTO>> standardFindingRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData = new ArrayList<>();
-        rowData.add(new LoanDataValuesDTO("SFR: Finding Name", "1-4", "finding", "1", 1));
+        rowData.add(new LoanDataValuesDTO("Standard Findings Report", "SFR: Finding Name", "1-4", "finding", "1", 2, 1));
         List<LoanDataValuesDTO> rowData2 = new ArrayList<>();
-        rowData2.add(new LoanDataValuesDTO("SFR: Finding Name", "RMCa", "finding", "2", 1));
+        rowData2.add(new LoanDataValuesDTO("Standard Findings Report", "SFR: Finding Name", "RMCa", "finding", "2", 2, 1));
         List<LoanDataValuesDTO> rowData3 = new ArrayList<>();
-        rowData3.add(new LoanDataValuesDTO("SFR: Finding Name", "RMCb", "finding", "3", 1));
+        rowData3.add(new LoanDataValuesDTO("Standard Findings Report", "SFR: Finding Name", "RMCb", "finding", "3", 2, 1));
+        List<LoanDataValuesDTO> rowDataX = new ArrayList<>();
+        rowDataX.add(new LoanDataValuesDTO("Standard Findings Report", "SFR: Finding Name", "1-4", "finding", "5", 2, 2));
+        List<LoanDataValuesDTO> rowDataY = new ArrayList<>();
+        rowDataY.add(new LoanDataValuesDTO("Standard Findings Report", "SFR: Finding Name", "Missing Doc", "finding", "6", 2, 2));
+        List<LoanDataValuesDTO> rowDataZ = new ArrayList<>();
+        rowDataZ.add(new LoanDataValuesDTO("Standard Findings Report", "SFR: Finding Name", "DC Finfing", "finding", "7", 2, 2));
+        List<LoanDataValuesDTO> rowDataZA = new ArrayList<>();
+        rowDataZA.add(new LoanDataValuesDTO("Standard Findings Report", "SFR: Finding Name", "Note Date is Missing", "finding", "8", 2, 2));
         standardFindingRows.add(rowData);
         standardFindingRows.add(rowData2);
         standardFindingRows.add(rowData3);
+        standardFindingRows.add(rowDataX);
+        standardFindingRows.add(rowDataY);
+        standardFindingRows.add(rowDataZ);
+        standardFindingRows.add(rowDataZA);
 
         List<List<LoanDataValuesDTO>> findingHistoryRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData4 = new ArrayList<>();
-        rowData4.add(new LoanDataValuesDTO("FHR: Finding Name", "RMCb", "finding", "3", 2));
+        rowData4.add(new LoanDataValuesDTO("Findings History Report", "FHR: Finding Name", "RMCb", "finding", "3", 3, 1));
         List<LoanDataValuesDTO> rowData5 = new ArrayList<>();
-        rowData5.add(new LoanDataValuesDTO("FHR: Finding Name", "RMCa", "finding", "2", 2));
+        rowData5.add(new LoanDataValuesDTO("Findings History Report","FHR: Finding Name", "RMCa", "finding", "2", 3, 1));
+        List<LoanDataValuesDTO> rowData55 = new ArrayList<>();
+        rowData55.add(new LoanDataValuesDTO("Findings History Report","FHR: Finding Name", "Note Date is Missing", "finding", "8", 3, 2));
         findingHistoryRows.add(rowData4);
         findingHistoryRows.add(rowData5);
+        findingHistoryRows.add(rowData55);
 
         List<List<LoanDataValuesDTO>> radianRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowDataA = new ArrayList<>();
-        rowDataA.add(new LoanDataValuesDTO("Radian: Finding Name", "RMCb", "finding", "3", 3));
-        rowDataA.add(new LoanDataValuesDTO("Radian: Section", "1.1 Section", "finding", "3", 4));
+        rowDataA.add(new LoanDataValuesDTO("Radian Overlays Report","Radian: Finding Name", "RMCb", "finding", "3", 4, 1));
+        rowDataA.add(new LoanDataValuesDTO("Radian Overlays Report", "Radian: Section", "1.1 Section", "finding", "3", 5, 1));
         radianRows.add(rowDataA);
 
         List<List<LoanDataValuesDTO>> dataCompareRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData6 = new ArrayList<>();
-        rowData6.add(new LoanDataValuesDTO("DC: Field Name", "Number of Borrowers", "field", "1", 5));
-        rowData6.add(new LoanDataValuesDTO("DC: Source", "the1008Page", "field", "1", 7));
-        rowData6.add(new LoanDataValuesDTO("DC: Comment", "Rescinded", "field", "1", 8));
+        rowData6.add(new LoanDataValuesDTO("Data Compare Report","DC: Field Name", "Number of Borrowers", "field", "1", 6, 1));
+        rowData6.add(new LoanDataValuesDTO("Data Compare Report","DC: Source", "the1008Page", "field", "1", 8, 1));
+        rowData6.add(new LoanDataValuesDTO("Data Compare Report","DC: Comment", "Rescinded", "field", "1", 9, 1));
         List<LoanDataValuesDTO> rowData7 = new ArrayList<>();
-        rowData7.add(new LoanDataValuesDTO("DC: Field Name", "Qualifying HLTV", "field", "2", 5));
-        rowData7.add(new LoanDataValuesDTO("DC: Source", "Property", "field", "2", 7));
-        rowData7.add(new LoanDataValuesDTO("DC: Comment", "Need explanation", "field", "2", 8));
+        rowData7.add(new LoanDataValuesDTO("Data Compare Report","DC: Field Name", "Qualifying HLTV", "field", "2", 6, 1));
+        rowData7.add(new LoanDataValuesDTO("Data Compare Report","DC: Source", "Property", "field", "2", 8, 1));
+        rowData7.add(new LoanDataValuesDTO("Data Compare Report","DC: Comment", "Need explanation", "field", "2", 9, 1));
         dataCompareRows.add(rowData6);
         dataCompareRows.add(rowData7);
 
         List<List<LoanDataValuesDTO>> dataCompareSummaryRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData8 = new ArrayList<>();
-        rowData8.add(new LoanDataValuesDTO("DCS: Field Label", "NumberofBorrowers", "field", "1", 6));
-        rowData8.add(new LoanDataValuesDTO("DCS: % Variance", "25%", "field", "1", 9));
+        rowData8.add(new LoanDataValuesDTO("Data Compare Summary", "DCS: Field Label", "NumberofBorrowers", "field", "1", 7, 1));
+        rowData8.add(new LoanDataValuesDTO("Data Compare Summary", "DCS: % Variance", "25%", "field", "1", 10, 1));
         List<LoanDataValuesDTO> rowData9 = new ArrayList<>();
-        rowData9.add(new LoanDataValuesDTO("DCS: Field Label", "QualifyingHLTV", "field", "2", 6));
-        rowData9.add(new LoanDataValuesDTO("DCS: % Variance", "33%", "field", "2", 9));
+        rowData9.add(new LoanDataValuesDTO("Data Compare Summary", "DCS: Field Label", "QualifyingHLTV", "field", "2", 7, 1));
+        rowData9.add(new LoanDataValuesDTO("Data Compare Summary", "DCS: % Variance", "33%", "field", "2", 10, 1));
         dataCompareSummaryRows.add(rowData8);
         dataCompareSummaryRows.add(rowData9);
 
+        multiRowCustomReportDataSets.add(loanIdReport);
         multiRowCustomReportDataSets.add(standardFindingRows);
         multiRowCustomReportDataSets.add(findingHistoryRows);
         multiRowCustomReportDataSets.add(radianRows);
         multiRowCustomReportDataSets.add(dataCompareRows);
         multiRowCustomReportDataSets.add(dataCompareSummaryRows);
-        return multiRowCustomReportDataSets;
+        return autoOutput(multiRowCustomReportDataSets, new ArrayList<>());
     }
-    private static List<List<List<LoanDataValuesDTO>>> threeGroupTest() {
+    private static TestData threeGroupTest() {
         List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = new ArrayList<>();
         List<List<LoanDataValuesDTO>> standardFindingRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData = new ArrayList<>();
@@ -303,9 +295,9 @@ public class Main {
         multiRowCustomReportDataSets.add(dataCompareRows);
         multiRowCustomReportDataSets.add(dataCompareSummaryRows);
         multiRowCustomReportDataSets.add(multiPropertyRows);
-        return multiRowCustomReportDataSets;
+        return autoOutput(multiRowCustomReportDataSets, new ArrayList<>());
     }
-    private static List<List<List<LoanDataValuesDTO>>> fourGroupTest() {
+    private static TestData fourGroupTest() {
         List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = new ArrayList<>();
         List<List<LoanDataValuesDTO>> standardFindingRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData = new ArrayList<>();
@@ -390,9 +382,9 @@ public class Main {
         multiRowCustomReportDataSets.add(dataCompareSummaryRows);
         multiRowCustomReportDataSets.add(multiPropertyRows);
         multiRowCustomReportDataSets.add(borrowerReport);
-        return multiRowCustomReportDataSets;
+        return autoOutput(multiRowCustomReportDataSets, new ArrayList<>());
     }
-    private static List<List<List<LoanDataValuesDTO>>> realTest() {
+    private static TestData realTest() {
         List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = new ArrayList<>();
         List<List<LoanDataValuesDTO>> standardFindingRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData = new ArrayList<>();
@@ -430,19 +422,9 @@ public class Main {
         multiRowCustomReportDataSets.add(standardFindingRows);
         multiRowCustomReportDataSets.add(findingHistoryRows);
         multiRowCustomReportDataSets.add(radianRows);
-        return multiRowCustomReportDataSets;
+        return autoOutput(multiRowCustomReportDataSets, new ArrayList<>());
     }
-    private static LoanDataValuesDTO txDV(String value, String groupKey) {
-        return LoanDataValuesDTO.builder()
-                .reportHeaderName("Finding Name")
-                .reportName("Findings History Report")
-                .groupKey(groupKey)
-                .groupingKey("finding")
-                .value(value)
-                .order(13)
-                .build();
-    }
-    private static List<List<List<LoanDataValuesDTO>>> txTest() {
+    private static TestData txTest() {
         List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets = new ArrayList<>();
         List<List<LoanDataValuesDTO>> standardFindingRows = new ArrayList<>();
         List<LoanDataValuesDTO> rowData = new ArrayList<>();
@@ -473,37 +455,86 @@ public class Main {
         multiRowCustomReportDataSets.add(standardFindingRows);
         multiRowCustomReportDataSets.add(findingHistoryRows);
         multiRowCustomReportDataSets.add(radianRows);
-        return multiRowCustomReportDataSets;
+        return autoOutput(multiRowCustomReportDataSets, new ArrayList<>());
+    }
+    private record TestData(List<ColumnHeader> headers, List<List<List<LoanDataValuesDTO>>> basicReportData, List<List<List<LoanDataValuesDTO>>> forcedMultiLoanReportData) {}
+    private static TestData dataCompareSummaryTest() {
+        List<List<List<LoanDataValuesDTO>>> basicReportData = new ArrayList<>();
+        List<List<List<LoanDataValuesDTO>>> forcedMultiLoanReportData = new ArrayList<>();
+        List<List<LoanDataValuesDTO>> dataCompareRows = new ArrayList<>();
+        List<LoanDataValuesDTO> rowData = new ArrayList<>();
+        rowData.add(new LoanDataValuesDTO("Data Compare Report", "Loan ID", "BNT99140", "field", "PropertyAddress", 1, 1));
+        rowData.add(new LoanDataValuesDTO("Data Compare Report", "Field Name", "Property Address", "field", "PropertyAddress", 2, 1));
+        rowData.add(new LoanDataValuesDTO("Data Compare Report", "Source", "tape", "field", "PropertyAddress", 3, 1));
+        List<LoanDataValuesDTO> rowData5 = new ArrayList<>();
+        rowData5.add(new LoanDataValuesDTO("Data Compare Report", "Loan ID", "BNT99140", "field", "PropertyCity", 1, 1));
+        rowData5.add(new LoanDataValuesDTO("Data Compare Report", "Field Name", "Property City", "field", "PropertyCity", 2, 1));
+        rowData5.add(new LoanDataValuesDTO("Data Compare Report", "Source", "tape", "field", "PropertyCity", 3, 1));
+        List<LoanDataValuesDTO> rowData2 = new ArrayList<>();
+        rowData2.add(new LoanDataValuesDTO("Data Compare Report", "Loan ID", "BNT99142", "field", "PropertyCity", 1, 2));
+        rowData2.add(new LoanDataValuesDTO("Data Compare Report", "Field Name", "Property City", "field", "PropertyCity", 2, 2));
+        rowData2.add(new LoanDataValuesDTO("Data Compare Report", "Source", "the1008Page", "field", "PropertyCity", 3, 2));
+        List<LoanDataValuesDTO> rowData6 = new ArrayList<>();
+        rowData6.add(new LoanDataValuesDTO("Data Compare Report", "Loan ID", "BNT99142", "field", "PropertyAddress", 1, 2));
+        rowData6.add(new LoanDataValuesDTO("Data Compare Report", "Field Name", "Property Address", "field", "PropertyAddress", 2, 2));
+        rowData6.add(new LoanDataValuesDTO("Data Compare Report", "Source", "the1008Page", "field", "PropertyAddress", 3, 2));
+        dataCompareRows.add(rowData);
+        dataCompareRows.add(rowData5);
+        dataCompareRows.add(rowData2);
+        dataCompareRows.add(rowData6);
+
+        List<List<LoanDataValuesDTO>> dataCompareSummaryRows = new ArrayList<>();
+        List<LoanDataValuesDTO> rowData3 = new ArrayList<>();
+        List<Integer> allLoansCompared = List.of(1, 2);
+        rowData3.add(new LoanDataValuesDTO("Data Compare Summary Report", "Loans With Discrepancy", "8", "field", "PropertyAddress", 4, allLoansCompared));
+        rowData3.add(new LoanDataValuesDTO("Data Compare Summary Report", "Total Times Compared", "60", "field", "PropertyAddress", 5, allLoansCompared));
+        rowData3.add(new LoanDataValuesDTO("Data Compare Summary Report", "% Variance", "13.33%", "field", "PropertyAddress", 6, allLoansCompared));
+        List<LoanDataValuesDTO> rowData4 = new ArrayList<>();
+        rowData4.add(new LoanDataValuesDTO("Data Compare Summary Report", "Loans With Discrepancy", "4", "field", "PropertyCity", 4, allLoansCompared));
+        rowData4.add(new LoanDataValuesDTO("Data Compare Summary Report", "Total Times Compared", "60", "field", "PropertyCity", 5, allLoansCompared));
+        rowData4.add(new LoanDataValuesDTO("Data Compare Summary Report", "% Variance", "6.67%", "field", "PropertyCity", 6, allLoansCompared));
+        dataCompareSummaryRows.add(rowData3);
+        dataCompareSummaryRows.add(rowData4);
+
+        basicReportData.add(dataCompareRows);
+        forcedMultiLoanReportData.add(dataCompareSummaryRows);
+
+        return autoOutput(basicReportData, forcedMultiLoanReportData);
     }
 
-    // Logic
-    // Logic
-    private static int countRows(List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets) {
-        // Use a HashMap to keep track of unique groupKeys for each groupingKey
-        HashMap<String, HashMap<String, Boolean>> uniqueGroupKeys = new HashMap<>();
 
-        // Iterate over the multiRowCustomReportDataSets to populate uniqueGroupKeys
-        for (List<List<LoanDataValuesDTO>> dataset : multiRowCustomReportDataSets) {
-            for (List<LoanDataValuesDTO> rowGroup : dataset) {
-                for (LoanDataValuesDTO row : rowGroup) {
-                    String groupingKey = row.getGroupingKey();
-                    String groupKey = row.getGroupKey();
-                    if (groupingKey != null && !groupingKey.trim().isEmpty() && groupKey != null && !groupKey.trim().isEmpty()) {
-                        uniqueGroupKeys.putIfAbsent(groupingKey, new HashMap<>());
-                        uniqueGroupKeys.get(groupingKey).put(groupKey, true);
-                    }
+    // Testing Utilities
+    private static LoanDataValuesDTO r1(int i) {
+        return new LoanDataValuesDTO("Finding Name", "1-4 Family Rider is Missing" + i, "finding", i+"", 2);
+    }
+    private static LoanDataValuesDTO txDV(String value, String groupKey) {
+        return LoanDataValuesDTO.builder()
+                .reportHeaderName("Finding Name")
+                .reportName("Findings History Report")
+                .groupKey(groupKey)
+                .groupingKey("finding")
+                .value(value)
+                .order(13)
+                .build();
+    }
+    private static void extractHeadersFromTestData(List<List<List<LoanDataValuesDTO>>> reportData, HashSet<ColumnHeader> headers) {
+        for (List<List<LoanDataValuesDTO>> list : reportData) {
+            for (List<LoanDataValuesDTO> row : list) {
+                for (LoanDataValuesDTO cell : row) {
+                    headers.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
                 }
             }
         }
-
-        // Calculate the total number of rows by multiplying the counts of unique groupKeys for each groupingKey
-        int totalRows = 1;
-        for (var entry : uniqueGroupKeys.entrySet()) {
-            totalRows *= entry.getValue().size();
-        }
-
-        return totalRows;
     }
+    private static TestData autoOutput(List<List<List<LoanDataValuesDTO>>> basicReports, List<List<List<LoanDataValuesDTO>>> forcedMultiLoanReports) {
+        HashSet<ColumnHeader> headers = new HashSet<>();
+        extractHeadersFromTestData(basicReports, headers);
+        extractHeadersFromTestData(forcedMultiLoanReports, headers);
+        List<ColumnHeader> sorted = headers.stream().sorted().toList();
+        return new TestData(sorted, basicReports, forcedMultiLoanReports);
+    }
+
+    // Logic
     private record ColumnHeader(String identifier, String value, int order, String groupingKey) implements Comparable<ColumnHeader> {
 
         @Override
@@ -511,13 +542,14 @@ public class Main {
             return Comparator.comparing(ColumnHeader::order).compare(this, o);
         }
     }
-    private record GroupKeyValue(String identifier, String groupingKey, String key, String value, int order, String header) implements Comparable<GroupKeyValue> {
+    private record GroupKeyValue(String identifier, String groupingKey, String key, String value, int order, String header, Integer loanRecordId) implements Comparable<GroupKeyValue> {
         @Override
         public int compareTo(GroupKeyValue o) {
             return Comparator.comparing(GroupKeyValue::order).compare(this, o);
         }
     }
     private record GroupedRow(String groupingKey, Integer rowIndex) {}
+    private record LoanGroupingKey(String groupingKey, Integer loanRecordId) {}
     private static List<List<LoanDataValuesDTO>> groupSortMultiRowReportData(List<List<List<LoanDataValuesDTO>>> data) {
         // Variables
         List<List<LoanDataValuesDTO>> output = new ArrayList<>();
@@ -529,32 +561,58 @@ public class Main {
         HashMap<String, Integer> rowsRemainingUntilRollover = new HashMap<>();
         HashMap<String, Integer> remainingRowsResetMap = new HashMap<>();
         HashMap<GroupedRow, String> groupKeyForRow = new HashMap<>();
+        HashMap<GroupedRow, Integer> loanRecordIdForRow = new HashMap<>();
         HashMap<Integer, List<LoanDataValuesDTO>> rowsByColumnIndex = new HashMap<>();
         HashMap<String, LinkedHashSet<String>> uniqueKeysByGroupingKey = new HashMap<>();
+        HashMap<LoanGroupingKey, LinkedHashSet<String>> uniqueKeysByLoanRecordAndGroupingKey = new HashMap<>();
+        HashMap<String, LinkedHashSet<Integer>> uniqueLoanRecordIdsByGroupingKey = new HashMap<>();
         HashMap<String, List<String>> iterableGroupKeysByGroupingKey = new HashMap<>();
+        HashMap<LoanGroupingKey, List<String>> iterableGroupKeysByLoanRecordAndGroupingKey = new HashMap<>();
+        HashMap<String, List<Integer>> iterableLoanRecordIdsByGroupingKey = new HashMap<>();
+        HashSet<Integer> uniqueLoanRecordIds = new HashSet<>();
+        int loanRecordIteration = 0;
 
         // Setup
         for (List<List<LoanDataValuesDTO>> list : data) {
             for (List<LoanDataValuesDTO> row : list) {
                 for (LoanDataValuesDTO cell : row) {
                     matchKeyCheck.add(cell.getGroupingKey());
-                    groupKeyValues.add(new GroupKeyValue(cell.getReportName(), cell.getGroupingKey(), cell.getGroupKey(), cell.getValue(), cell.getOrder(), cell.getReportHeaderName()));
+                    uniqueLoanRecordIds.add(cell.getLoanRecordId());
+                    groupKeyValues.add(new GroupKeyValue(cell.getReportName(), cell.getGroupingKey(), cell.getGroupKey(), cell.getValue(), cell.getOrder(), cell.getReportHeaderName(), cell.getLoanRecordId()));
                     headers.add(new ColumnHeader(cell.getReportName(), cell.getReportHeaderName(), cell.getOrder(), cell.getGroupingKey()));
                 }
             }
         }
+        List<Integer> iterableLoanRecordIds = new ArrayList<>(uniqueLoanRecordIds);
         List<ColumnHeader> sorted = headers.stream().sorted().toList();
         groupKeyValues.stream().sorted().toList().forEach(key -> {
             if (key.key() != null && !key.value().trim().isEmpty()) {
+                LoanGroupingKey loanGroupingKey = new LoanGroupingKey(key.groupingKey(), key.loanRecordId());
                 LinkedHashSet<String> list = uniqueKeysByGroupingKey.getOrDefault(key.groupingKey(), new LinkedHashSet<>());
+                LinkedHashSet<String> lrList = uniqueKeysByLoanRecordAndGroupingKey.getOrDefault(loanGroupingKey, new LinkedHashSet<>());
+                LinkedHashSet<Integer> loanIdList = uniqueLoanRecordIdsByGroupingKey.getOrDefault(key.groupingKey(), new LinkedHashSet<>());
                 list.add(key.key());
+                loanIdList.add(key.loanRecordId());
+                lrList.add(key.key());
                 uniqueKeysByGroupingKey.put(key.groupingKey(), list);
+                uniqueKeysByLoanRecordAndGroupingKey.put(loanGroupingKey, lrList);
+                uniqueLoanRecordIdsByGroupingKey.put(key.groupingKey(), loanIdList);
             }
         });
         for (var entry : uniqueKeysByGroupingKey.entrySet()) {
             List<String> list = iterableGroupKeysByGroupingKey.getOrDefault(entry.getKey(), new ArrayList<>());
             list.addAll(entry.getValue());
             iterableGroupKeysByGroupingKey.put(entry.getKey(), list);
+        }
+        for (var entry : uniqueKeysByLoanRecordAndGroupingKey.entrySet()) {
+            List<String> list = iterableGroupKeysByLoanRecordAndGroupingKey.getOrDefault(entry.getKey(), new ArrayList<>());
+            list.addAll(entry.getValue());
+            iterableGroupKeysByLoanRecordAndGroupingKey.put(entry.getKey(), list);
+        }
+        for (var entry : uniqueLoanRecordIdsByGroupingKey.entrySet()) {
+            List<Integer> list = iterableLoanRecordIdsByGroupingKey.getOrDefault(entry.getKey(), new ArrayList<>());
+            list.addAll(entry.getValue());
+            iterableLoanRecordIdsByGroupingKey.put(entry.getKey(), list);
         }
         List<String> matchKeys = matchKeyCheck.stream().toList();
         String currentMatchKey = matchKeys.get(0);
@@ -582,15 +640,25 @@ public class Main {
             rowsByColumnIndex.put(columnIndex, new ArrayList<>());
             List<LoanDataValuesDTO> row = rowsByColumnIndex.get(columnIndex);
             ColumnHeader column = sorted.get(columnIndex);
+            HashSet<Integer> loanRecordsSoFarThisColumn = new HashSet<>();
             for (int rowIndex = 0, rollOverCounter = 0; rowIndex < rows; rowIndex++) {
                 String group = column.groupingKey();
+                List<Integer> loanRecordIds = iterableLoanRecordIdsByGroupingKey.get(group);
                 GroupedRow groupedRow = new GroupedRow(group, rowIndex);
+                int lrIndex = loanRecordIteration;
+                Integer loanRecordId = loanRecordIdForRow.getOrDefault(groupedRow, lrIndex >= loanRecordIds.size() ? null : loanRecordIds.get(lrIndex));
                 List<String> groupKeys = iterableGroupKeysByGroupingKey.get(group);
+                LoanGroupingKey loanGroupingKey = new LoanGroupingKey(group, loanRecordId);
+                List<String> lrGroupKeys = iterableGroupKeysByLoanRecordAndGroupingKey.get(loanGroupingKey);
                 List<GroupKeyValue> groupMatches = groupKeyValues.stream().filter(g -> g.identifier().equalsIgnoreCase(column.identifier()) && g.groupingKey().equalsIgnoreCase(group)).toList();
                 int rolloverRows = groupingKeyRolloverMap.get(group);
                 int index = groupingIteration.get(group);
                 String groupKey = groupKeyForRow.getOrDefault(groupedRow, groupKeys.get(index));
+
                 List<GroupKeyValue> matches = groupMatches.stream().filter(c -> c.key().equalsIgnoreCase(groupKey)).toList();
+                if (matches.size() > 1) {
+                    matches = matches.stream().filter(m -> (loanRecordId == null || m.loanRecordId().equals(loanRecordId)) && m.header().equalsIgnoreCase(column.value())).toList();
+                }
                 String cellValue = !matches.isEmpty() ? matches.get(0).value() : "";
                 row.add(rowIndex, LoanDataValuesDTO.builder()
                         .reportHeaderName(column.value())
@@ -599,23 +667,32 @@ public class Main {
                         .groupKey(groupKey)
                         .order(column.order())
                         .reportName(column.identifier())
+                        .loanRecordId(loanRecordId)
                         .build()
                 );
                 if (matches.isEmpty() && !groupKeyForRow.containsKey(groupedRow)) {
                     groupKeyForRow.put(groupedRow, groupKey);
                 }
-                if (currentMatchKey.equalsIgnoreCase(group)) {
-                    groupingIteration.compute(group, (k, v) -> v == null ? 1 : v + 1);
-                    if (groupingIteration.get(group) >= uniqueKeysByGroupingKey.get(group).size()) {
-                        groupingIteration.put(group, 0);
+                if (matches.isEmpty() && !loanRecordIdForRow.containsKey(groupedRow)) {
+                    loanRecordIdForRow.put(groupedRow, loanRecordId);
+                }
+
+                loanRecordIteration++;
+                if (loanRecordIteration >= iterableLoanRecordIds.size()) {
+                    loanRecordIteration = 0;
+                    if (currentMatchKey.equalsIgnoreCase(group)) {
+                        groupingIteration.compute(group, (k, v) -> v == null ? 1 : v + 1);
+                        if (groupingIteration.get(group) >= uniqueKeysByGroupingKey.get(group).size()) {
+                            groupingIteration.put(group, 0);
+                        }
                     }
+                    for (var entry : rowsRemainingUntilRollover.entrySet()) {
+                        rowsRemainingUntilRollover.compute(entry.getKey(), (k, v) -> v == null ? 0 : v - 1);
+                    }
+                    rollOverCounter = rollover(rollOverCounter, rolloverRows, currentMatchKey, group,
+                            matchKeys, rowsRemainingUntilRollover, groupingIteration,
+                            uniqueKeysByGroupingKey, remainingRowsResetMap);
                 }
-                for (var entry : rowsRemainingUntilRollover.entrySet()) {
-                    rowsRemainingUntilRollover.compute(entry.getKey(), (k, v) -> v == null ? 0 : v - 1);
-                }
-                rollOverCounter = rollover(rollOverCounter, rolloverRows, currentMatchKey, group,
-                        matchKeys, rowsRemainingUntilRollover, groupingIteration,
-                        uniqueKeysByGroupingKey, remainingRowsResetMap);
             }
         }
 
@@ -627,7 +704,62 @@ public class Main {
             }
             output.add(row);
         }
+        if (uniqueKeysByGroupingKey.keySet().size() == 1) {
+            boolean allRowsHaveLoanRecordIds = true;
+            for (var row : output) {
+                for (var cell : row) {
+                    if (cell.getLoanRecordId() == null || cell.getLoanRecordId() < 1) {
+                        allRowsHaveLoanRecordIds = false;
+                        break;
+                    }
+                }
+            }
+            if (allRowsHaveLoanRecordIds) {
+                output.sort(Comparator.comparing(
+                        (List<LoanDataValuesDTO> list) -> list == null || list.isEmpty() ? null : list.get(0).getLoanRecordId(),
+                        Comparator.nullsLast(Comparator.naturalOrder())
+                ));
+            }
+        }
         return output;
+    }
+    private static List<List<LoanDataValuesDTO>> addForcedMultiLoanColumnDataToRows(List<List<LoanDataValuesDTO>> rowValues, List<List<List<LoanDataValuesDTO>>> forcedMultiLoanRowValues) {
+        for (var row : rowValues) {
+            if (!row.isEmpty()) {
+                var loanRecordId = row.get(0).getLoanRecordId();
+                var matchingReport = forcedMultiLoanRowValues.stream().filter(report ->
+                        report.stream().anyMatch(r ->
+                                r.stream().anyMatch(cell -> {
+                                    String cellGroupKey = cell != null ? cell.getGroupKey() : null;
+                                    LoanDataValuesDTO row0 = r.get(0);
+                                    String row0GroupKey = row0 != null ? row0.getGroupKey() : null;
+                                    List<Integer> lrIds = cell != null ? cell.getLoanRecordIds() : null;
+                                    return cell.getGroupKey().equalsIgnoreCase(r.get(0).getGroupKey()) && cell.getLoanRecordIds() != null && cell.getLoanRecordIds().contains(loanRecordId);
+                                        }
+                                        ))).toList();
+                if (!matchingReport.isEmpty()) {
+                    var matchingColumns = matchingReport.get(0).stream().filter(r -> r.stream().anyMatch(cell -> cell.getGroupKey().equalsIgnoreCase("PropertyAddress") && cell.getLoanRecordIds() != null && cell.getLoanRecordIds().contains(1))).toList();
+                    if (!matchingColumns.isEmpty()) {
+                        for (var col : matchingColumns.get(0)) {
+                            row.add(LoanDataValuesDTO.builder()
+                                    .reportHeaderName(col.getReportHeaderName())
+                                    .loanRecordId(loanRecordId)
+                                    .groupingKey(col.getGroupingKey())
+                                    .groupKey(col.getGroupKey())
+                                    .value(col.getValue())
+                                    .order(col.getOrder())
+                                    .loanRecordIds(col.getLoanRecordIds())
+                                    .reportName(col.getReportName())
+                                    .build()
+                            );
+
+                        }
+                    }
+                }
+            }
+            row.sort(Comparator.comparing(LoanDataValuesDTO::getOrder));
+        }
+        return rowValues;
     }
     private static int rollover(int rollOverCounter,
                                 int rolloverRows,
@@ -660,11 +792,40 @@ public class Main {
         }
         return rollOverCounter;
     }
+    private static int countRows(List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets) {
+        // Use a HashMap to keep track of unique groupKeys for each groupingKey
+        HashMap<String, HashMap<String, Boolean>> uniqueGroupKeys = new HashMap<>();
+        HashSet<Integer> uniqueLoanIds = new HashSet<>();
+
+        // Iterate over the multiRowCustomReportDataSets to populate uniqueGroupKeys
+        for (List<List<LoanDataValuesDTO>> dataset : multiRowCustomReportDataSets) {
+            for (List<LoanDataValuesDTO> rowGroup : dataset) {
+                for (LoanDataValuesDTO row : rowGroup) {
+                    String groupingKey = row.getGroupingKey();
+                    String groupKey = row.getGroupKey();
+                    uniqueLoanIds.add(row.getLoanRecordId());
+                    if (groupingKey != null && !groupingKey.trim().isEmpty() && groupKey != null && !groupKey.trim().isEmpty()) {
+                        uniqueGroupKeys.putIfAbsent(groupingKey, new HashMap<>());
+                        uniqueGroupKeys.get(groupingKey).put(groupKey, true);
+                    }
+                }
+            }
+        }
+
+        // Calculate the total number of rows by multiplying the counts of unique groupKeys for each groupingKey
+        int totalRows = 1;
+        for (var entry : uniqueGroupKeys.entrySet()) {
+            totalRows *= entry.getValue().size();
+        }
+
+        return totalRows * uniqueLoanIds.size();
+    }
 
     // Extras
-    private static List<List<LoanDataValuesDTO>> formatMultiRowCustomReportData(List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets) {
-        return groupSortMultiRowReportData(multiRowCustomReportDataSets);
-    }
+    /*private static List<List<LoanDataValuesDTO>> formatMultiRowCustomReportData(List<List<List<LoanDataValuesDTO>>> multiRowCustomReportDataSets) {
+        MultiRowGroupPhaseOneResult groupPhaseOneResult = groupSortMultiRowReportData(multiRowCustomReportDataSets);
+        return addForcedMultiLoanColumnDataToRows(groupPhaseOneResult.normalMultiRowData(), groupPhaseOneResult.forcedMultiLoanRows());
+    }*/
     private static class LoanDataValuesDTO {
         private String reportName;
         private String reportHeaderName;
@@ -673,6 +834,8 @@ public class Main {
         private String groupKey;
         private Integer order;
         private Integer originalOrder;
+        private Integer loanRecordId;
+        private List<Integer> loanRecordIds;
 
         public LoanDataValuesDTO() {}
 
@@ -694,6 +857,28 @@ public class Main {
             this.groupKey = groupKey;
             this.order = order;
             this.originalOrder = null;
+        }
+
+        public LoanDataValuesDTO(String reportName, String reportHeaderName, String value, String groupingKey, String groupKey, Integer order, Integer loanRecordId) {
+            this.reportName = reportName;
+            this.reportHeaderName = reportHeaderName;
+            this.value = value;
+            this.groupingKey = groupingKey;
+            this.groupKey = groupKey;
+            this.order = order;
+            this.originalOrder = null;
+            this.loanRecordId = loanRecordId;
+        }
+
+        public LoanDataValuesDTO(String reportName, String reportHeaderName, String value, String groupingKey, String groupKey, Integer order, List<Integer> loanRecordIds) {
+            this.reportName = reportName;
+            this.reportHeaderName = reportHeaderName;
+            this.value = value;
+            this.groupingKey = groupingKey;
+            this.groupKey = groupKey;
+            this.order = order;
+            this.originalOrder = null;
+            this.loanRecordIds = loanRecordIds;
         }
 
         public static class LDVBuilder {
@@ -729,6 +914,16 @@ public class Main {
 
             public LDVBuilder groupKey(String gk) {
                 this.instance.setGroupKey(gk);
+                return this;
+            }
+
+            public LDVBuilder loanRecordId(Integer id) {
+                this.instance.setLoanRecordId(id);
+                return this;
+            }
+
+            public LDVBuilder loanRecordIds(List<Integer> ids) {
+                this.instance.setLoanRecordIds(ids);
                 return this;
             }
 
@@ -809,6 +1004,22 @@ public class Main {
 
         public void setOriginalOrder(Integer originalOrder) {
             this.originalOrder = originalOrder;
+        }
+
+        public Integer getLoanRecordId() {
+            return loanRecordId;
+        }
+
+        public void setLoanRecordId(Integer loanRecordId) {
+            this.loanRecordId = loanRecordId;
+        }
+
+        public List<Integer> getLoanRecordIds() {
+            return loanRecordIds;
+        }
+
+        public void setLoanRecordIds(List<Integer> loanRecordIds) {
+            this.loanRecordIds = loanRecordIds;
         }
     }
 }
